@@ -307,10 +307,7 @@ async function queryMemoryServiceViaCode(query, config) {
     const enableMetrics = config?.codeExecution?.enableMetrics !== false;
 
     try {
-        const { execSync } = require('child_process');
-
-        // Escape query strings for safe shell execution
-        const escapeForPython = (str) => str.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+        const { execFileSync } = require('child_process');
 
         // Build Python code for memory search
         // Use v8.19.0+ Code Execution Interface API for optimal performance
@@ -323,7 +320,8 @@ from mcp_memory_service.api import search
 
 try:
     # Execute search with semantic query and limit (time filtering done server-side)
-    results = search("${escapeForPython(query.semanticQuery || '')}", limit=${query.limit || 8})
+    request = json.load(sys.stdin)
+    results = search(request['semanticQuery'], limit=request['limit'])
 
     # Format compact output
     output = {
@@ -356,7 +354,8 @@ except Exception as e:
         const timeout = config?.codeExecution?.timeout || 5000;
 
         // Execute Python code with timeout (suppress warnings to avoid stderr failures)
-        const result = execSync(`${pythonPath} -W ignore -c "${pythonCode.replace(/"/g, '\\"')}"`, {
+        const result = execFileSync(pythonPath, ['-W', 'ignore', '-c', pythonCode], {
+            input: JSON.stringify({ semanticQuery: query.semanticQuery || '', limit: query.limit || 8 }),
             encoding: 'utf-8',
             timeout: timeout,
             stdio: ['pipe', 'pipe', 'pipe']
